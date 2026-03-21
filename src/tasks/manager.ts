@@ -106,6 +106,7 @@ export class TaskManager {
 
         // Get existing context or create new one
         let context = this.activeTasks.get(issue.number);
+        this.worktrees.ensureOpenCodeProjectCache(issue.number);
         const worktreePath = this.worktrees.getPath(issue.number);
         const branchName = this.worktrees.getCurrentBranch(issue.number);
 

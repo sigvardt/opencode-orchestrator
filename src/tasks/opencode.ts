@@ -200,10 +200,10 @@ export class OpenCodeManager {
     ): Promise<OpenCodeTaskStatus> {
         const prompt = generateOrchestratorPrompt(this.config, issue, worktreePath, branchName);
 
-        // Create session with the worktree directory so OpenCode uses correct project context
-        // We use the issue title as the session title for visibility
+        // Create session WITHOUT directory scope so it appears in the TUI's default session list.
+        // The directory is passed when sending the prompt to set the correct execution context.
         const title = `Issue #${issue.number}: ${issue.title.substring(0, 50)}`;
-        const session = await this.client.createSession(title, undefined, worktreePath);
+        const session = await this.client.createSession(title);
 
         logger.info({ issueNumber: issue.number, sessionId: session.id }, 'Created OpenCode session');
 
@@ -213,8 +213,8 @@ export class OpenCodeManager {
         try {
             await this.client.sendPromptAsync(session.id, [{
                 type: 'text',
-                text: prompt
-            }]);
+                text: `/ulw-loop ${prompt}`
+            }], undefined, worktreePath);
         } catch (error: any) {
             logger.error({
                 issueNumber: issue.number,
@@ -271,12 +271,11 @@ export class OpenCodeManager {
             return this.startTask(issue, worktreePath, `ai/issue-${issue.number}-recovery`);
         }
 
-        // Send continuation prompt
         try {
             await this.client.sendPromptAsync(previousSessionId, [{
                 type: 'text',
                 text: prompt
-            }]);
+            }], undefined, worktreePath);
         } catch (error: any) {
             logger.error({
                 issueNumber: issue.number,

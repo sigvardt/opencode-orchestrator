@@ -205,6 +205,10 @@ export class OpenCodeServerClient {
     /**
      * Send a prompt asynchronously (returns immediately, response via events)
      * This is the equivalent of POST /session/:id/prompt_async
+     *
+     * @param directory - Optional project directory to set execution context via
+     *   x-opencode-directory header. This tells the OpenCode server which project
+     *   context to use when executing the prompt (working directory, git repo, etc.)
      */
     async sendPromptAsync(
         sessionId: string,
@@ -213,13 +217,19 @@ export class OpenCodeServerClient {
             messageID?: string;
             model?: string;
             agent?: string;
-        }
+        },
+        directory?: string
     ): Promise<void> {
-        logger.info({ sessionId, partsCount: parts.length }, 'Sending async prompt');
+        logger.info({ sessionId, partsCount: parts.length, directory }, 'Sending async prompt');
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (directory) {
+            headers['x-opencode-directory'] = directory;
+        }
 
         const response = await fetch(`${this.baseUrl}/session/${sessionId}/prompt_async`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ parts, ...options }),
         });
 

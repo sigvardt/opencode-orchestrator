@@ -1,27 +1,30 @@
-import { Config, getRepoInfo } from '../config.js';
-import { Issue } from '../github/client.js';
+import { Config, getRepoInfo } from "../config.js";
+import { Issue } from "../github/client.js";
 
 /**
  * Generate the main orchestrator prompt for a new task
  */
 export function generateOrchestratorPrompt(
-   config: Config,
-   issue: Issue,
-   worktreePath: string,
-   branchName: string
+  config: Config,
+  issue: Issue,
+  worktreePath: string,
+  branchName: string,
 ): string {
-   const { owner, repo } = getRepoInfo(config);
+  const { owner, repo } = getRepoInfo(config);
 
-   // Sort comments by creation date to show chronological progress
-   const sortedComments = [...issue.comments].sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-   );
+  // Sort comments by creation date to show chronological progress
+  const sortedComments = [...issue.comments].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 
-   const commentsSection = sortedComments.length > 0
-      ? sortedComments.map(c => `**${c.author}** (${c.createdAt}):\n${c.body}`).join('\n\n---\n\n')
-      : '_No comments yet_';
+  const commentsSection =
+    sortedComments.length > 0
+      ? sortedComments
+          .map((c) => `**${c.author}** (${c.createdAt}):\n${c.body}`)
+          .join("\n\n---\n\n")
+      : "_No comments yet_";
 
-   return `# GitHub Task Orchestrator - Issue #${issue.number}
+  return `# GitHub Task Orchestrator - Issue #${issue.number}
 
 You are an autonomous AI developer working on a GitHub issue. Your task is to fully implement the requested changes, run quality gates, and create a PR.
 
@@ -36,7 +39,7 @@ You are an autonomous AI developer working on a GitHub issue. Your task is to fu
 
 ## Issue Description
 
-${issue.body || '_No description provided_'}
+${issue.body || "_No description provided_"}
 
 ## Previous Comments (Full History)
 
@@ -189,6 +192,7 @@ Changes for issue.
 Closes #${issue.number}
 EOF
 gh pr create --title "feat: title (#${issue.number})" --body-file /tmp/pr_$$.md --base main
+gh pr merge --auto --squash
 rm /tmp/pr_$$.md
 \\\`\\\`\\\`
 
@@ -203,7 +207,7 @@ gh issue view ${issue.number} --json labels
 
 ## Critical Rules
 
-1. NEVER merge PRs - only create them
+1. ALWAYS enable auto-merge after creating PRs (\`gh pr merge --auto --squash\`)
 2. NEVER push to main - use feature branch only
 3. ASK when uncertain - block and ask > implement wrong
 4. QUALITY FIRST - all gates pass before PR
@@ -262,24 +266,27 @@ Start by reading the issue carefully and exploring the codebase. Create a todo l
  * Generate continuation prompt for a blocked task that received a reply
  */
 export function generateContinuationPrompt(
-   config: Config,
-   issue: Issue,
-   worktreePath: string,
-   previousSessionId: string,
-   newComment: string
+  config: Config,
+  issue: Issue,
+  worktreePath: string,
+  previousSessionId: string,
+  newComment: string,
 ): string {
-   const { owner, repo } = getRepoInfo(config);
+  const { owner, repo } = getRepoInfo(config);
 
-   // Sort comments by creation date to show chronological progress
-   const sortedComments = [...issue.comments].sort((a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-   );
+  // Sort comments by creation date to show chronological progress
+  const sortedComments = [...issue.comments].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+  );
 
-   const commentsSection = sortedComments.length > 0
-      ? sortedComments.map(c => `**${c.author}** (${c.createdAt}):\n${c.body}`).join('\n\n---\n\n')
-      : '_No comments yet_';
+  const commentsSection =
+    sortedComments.length > 0
+      ? sortedComments
+          .map((c) => `**${c.author}** (${c.createdAt}):\n${c.body}`)
+          .join("\n\n---\n\n")
+      : "_No comments yet_";
 
-   return `# Continuing Work on Issue #${issue.number}
+  return `# Continuing Work on Issue #${issue.number}
 
 You previously started work on this issue but needed clarification. The human has replied.
 
@@ -359,11 +366,12 @@ gh issue edit ${issue.number} --remove-label "ai-in-progress" --add-label "ai-re
 **Create PR:**
 \`\`\`bash
 gh pr create --title "feat: title (#${issue.number})" --body-file /tmp/pr_$$.md --base main
+gh pr merge --auto --squash
 \`\`\`
 
 ## Critical Rules
 
-1. NEVER merge PRs - only create them
+1. ALWAYS enable auto-merge after creating PRs (\`gh pr merge --auto --squash\`)
 2. NEVER push to main - use feature branch only
 3. QUALITY FIRST - all gates pass before PR
 4. CI MUST PASS - wait for green before PR

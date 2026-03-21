@@ -39,6 +39,104 @@ export class WorktreeManager {
         }
     }
 
+    private resolveGitPath(basePath: string, gitPath: string): string {
+        const normalizedPath = gitPath.trim();
+
+        if (!normalizedPath) {
+            return basePath;
+        }
+
+        return path.isAbsolute(normalizedPath)
+            ? path.normalize(normalizedPath)
+            : path.resolve(basePath, normalizedPath);
+    }
+
+    private getOpenCodeProjectId(worktreePath: string, gitDirs: string[]): string | null {
+        for (const gitDir of gitDirs) {
+            const cachePath = path.join(gitDir, 'opencode');
+
+            if (!fs.existsSync(cachePath)) {
+                continue;
+            }
+
+            const cachedProjectId = fs.readFileSync(cachePath, 'utf-8').trim();
+            if (cachedProjectId) {
+                return cachedProjectId;
+            }
+        }
+
+        try {
+            const output = execSync('git rev-list --max-parents=0 HEAD', {
+                cwd: worktreePath,
+                encoding: 'utf-8',
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+
+            const roots = output
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .sort();
+
+            return roots[0] || null;
+        } catch (error) {
+            logger.warn({ worktreePath, error }, 'Failed to compute OpenCode project ID for worktree');
+            return null;
+        }
+    }
+
+    private syncOpenCodeProjectCache(worktreePath: string): void {
+        try {
+            const gitDir = this.resolveGitPath(
+                worktreePath,
+                execSync('git rev-parse --git-dir', {
+                    cwd: worktreePath,
+                    encoding: 'utf-8',
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                })
+            );
+
+            const commonGitDir = this.resolveGitPath(
+                worktreePath,
+                execSync('git rev-parse --git-common-dir', {
+                    cwd: worktreePath,
+                    encoding: 'utf-8',
+                    stdio: ['pipe', 'pipe', 'pipe'],
+                })
+            );
+
+            const projectId = this.getOpenCodeProjectId(worktreePath, [commonGitDir, gitDir]);
+            if (!projectId) {
+                return;
+            }
+
+            for (const targetGitDir of new Set([commonGitDir, gitDir])) {
+                const cachePath = path.join(targetGitDir, 'opencode');
+                const cachedProjectId = fs.existsSync(cachePath)
+                    ? fs.readFileSync(cachePath, 'utf-8').trim()
+                    : '';
+
+                if (cachedProjectId !== projectId) {
+                    fs.writeFileSync(cachePath, `${projectId}\n`, 'utf-8');
+                }
+            }
+
+            logger.info({ worktreePath, gitDir, commonGitDir, projectId }, 'Synced OpenCode project cache for worktree');
+        } catch (error) {
+            logger.warn({ worktreePath, error }, 'Failed to sync OpenCode project cache for worktree');
+        }
+    }
+
+    ensureOpenCodeProjectCache(issueNumber: number): void {
+        const worktreePath = getWorktreePath(this.config, issueNumber);
+
+        if (!fs.existsSync(worktreePath)) {
+            return;
+        }
+
+        this.syncOpenCodeProjectCache(worktreePath);
+    }
+
     /**
      * Create a new worktree for an issue
      */
@@ -54,6 +152,7 @@ export class WorktreeManager {
         // Check if worktree already exists
         if (fs.existsSync(worktreePath)) {
             logger.info({ issueNumber, worktreePath }, 'Worktree already exists');
+            this.syncOpenCodeProjectCache(worktreePath);
             return worktreePath;
         }
 
@@ -67,7 +166,7 @@ export class WorktreeManager {
                 stdio: 'pipe',
             });
 
-            // Check if branch already exists
+            // Check if branch already exists locally
             let branchExists = false;
             try {
                 execSync(`git show-ref --verify refs/heads/${branchName}`, {
@@ -76,13 +175,38 @@ export class WorktreeManager {
                 });
                 branchExists = true;
             } catch {
-                // Branch doesn't exist, that's fine
+                // Branch doesn't exist locally, check remote
+            }
+
+            // Check if branch exists on remote (for CI recovery / conflict retry flows)
+            let remoteBranchExists = false;
+            if (!branchExists) {
+                try {
+                    execSync(`git fetch origin ${branchName}`, {
+                        cwd: this.config.opencode.projectPath,
+                        stdio: 'pipe',
+                    });
+                    execSync(`git show-ref --verify refs/remotes/origin/${branchName}`, {
+                        cwd: this.config.opencode.projectPath,
+                        stdio: 'pipe',
+                    });
+                    remoteBranchExists = true;
+                } catch {
+                    // Branch doesn't exist remotely either
+                }
             }
 
             if (branchExists) {
-                // Use existing branch
-                logger.info({ issueNumber, branchName }, 'Branch already exists, reusing it');
+                // Use existing local branch
+                logger.info({ issueNumber, branchName }, 'Local branch exists, reusing it');
                 execSync(`git worktree add "${worktreePath}" ${branchName}`, {
+                    cwd: this.config.opencode.projectPath,
+                    stdio: 'pipe',
+                });
+            } else if (remoteBranchExists) {
+                // Use existing remote branch (preserves previous work from CI retry / conflict fix)
+                logger.info({ issueNumber, branchName }, 'Remote branch exists, checking out for retry');
+                execSync(`git worktree add "${worktreePath}" -b ${branchName} origin/${branchName}`, {
                     cwd: this.config.opencode.projectPath,
                     stdio: 'pipe',
                 });
@@ -95,6 +219,7 @@ export class WorktreeManager {
             }
 
             logger.info({ issueNumber, worktreePath, branchName }, 'Created worktree');
+            this.syncOpenCodeProjectCache(worktreePath);
             return worktreePath;
         } catch (error: unknown) {
             // Format error message for readability

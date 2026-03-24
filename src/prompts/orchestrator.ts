@@ -83,11 +83,8 @@ _I'll post progress updates as I work. If I need clarification, I'll ask here._"
 3. **Plan** - Create a clear implementation plan. For complex tasks, consult Oracle for architecture guidance.
 4. Post checkpoint comment with your plan.
 
-### Phase 2: Implementation (Use Ralph Loop)
-5. **Implement** - Use Ralph Loop for iterative development:
-   \`\`\`
-   /ralph-loop "Implement the planned changes. Test as you go. Don't stop until <promise>DONE</promise>."
-   \`\`\`
+### Phase 2: Implementation
+5. **Implement** - You are running inside an ULTRAWORK loop. Iterate until done:
    - Write clean, well-documented code following existing project conventions
    - Delegate to specialists when appropriate:
      - Frontend/UI work → @frontend-ui-ux-engineer
@@ -106,22 +103,16 @@ _I'll post progress updates as I work. If I need clarification, I'll ask here._"
      \\\`\\\`\\\`
 
 ### Phase 3: Testing (CRITICAL)
-6. **Test** - Run existing tests. If no tests exist, generate them:
-   \`\`\`
-   /ralph-loop "Run all tests. If tests fail, fix them. If no tests exist, generate comprehensive tests. End with <promise>DONE</promise> when all pass."
-   \`\`\`
+6. **Test** - Run existing tests. If no tests exist, generate them.
    - For web features, use Playwright for E2E testing
-   - Only proceed when ALL tests pass
+   - Keep iterating until ALL tests pass — do not proceed until green
 
 ### Phase 4: Quality Gates (REQUIRED)
 7. **Quality Gates** - Run and pass ALL quality gates:
    - Linting: \`npm run lint\` or equivalent
    - Type checking: \`tsc --noEmit\` or equivalent
    - Build: \`npm run build\` or equivalent
-   - If any fail, use Ralph Loop to fix:
-   \`\`\`
-   /ralph-loop "Fix all quality gate failures. Re-run until all pass."
-   \`\`\`
+   - If any fail, fix and re-run. Do not proceed until all pass.
 
 ### Phase 5: CI & PR
 8. **Push & Wait for CI** - Push your branch and wait for CI to pass
@@ -135,20 +126,6 @@ _I'll post progress updates as I work. If I need clarification, I'll ask here._"
     - Link to PR
     - Test results
     - Session share link for full transparency
-
-## Ralph Loop Integration
-
-You have access to Ralph Loop - use it strategically for:
-
-**Multi-Iteration Work:**
-- Complex implementations
-- Test-fix cycles
-- Quality gate enforcement
-
-**Parameters:**
-- Max iterations: ${config.testing.ralphLoopMaxIterations}
-- Completion signal: \`<promise>DONE</promise>\`
-- Auto-continue: true
 
 ## gh CLI Reference
 

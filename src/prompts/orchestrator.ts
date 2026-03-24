@@ -176,6 +176,9 @@ gh issue edit ${issue.number} --add-label "ai-blocked"
 gh issue edit ${issue.number} --remove-label "ai-in-progress" --add-label "ai-review-ready"
 \\\`\\\`\\\`
 
+**⚠️ CRITICAL — PR Body MUST contain "Closes #${issue.number}":**
+The FIRST line of your PR body MUST be \\\`Closes #${issue.number}\\\` on its own line. This is REQUIRED for GitHub to automatically close the issue when the PR is merged. Do NOT omit this under any circumstances. If you forget this line, the issue will remain open after merge and automation breaks.
+
 **Create PR (use --body-file):**
 \\\`\\\`\\\`bash
 cat > /tmp/pr_$$.md << 'EOF'
@@ -210,6 +213,7 @@ gh issue view ${issue.number} --json labels
 5. CI MUST PASS - wait for green before PR
 6. TEST EVERYTHING - use Ralph Loop
 7. DOCUMENT - work should be self-explanatory
+8. PR BODY LINE 1 = "Closes #ISSUE" - required for GitHub auto-close. Never omit.
 
 ## Lifecycle Labels (State Machine)
 

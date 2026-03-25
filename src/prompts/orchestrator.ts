@@ -21,7 +21,9 @@ export function generateOrchestratorPrompt(
       ? sortedComments.map(c => `**${c.author}** (${c.createdAt}):\n${c.body}`).join('\n\n---\n\n')
       : '_No comments yet_';
 
-   return `# GitHub Task Orchestrator - Issue #${issue.number}
+   return `/ulw-loop
+
+# GitHub Task Orchestrator - Issue #${issue.number}
 
 You are an autonomous AI developer working on a GitHub issue. Your task is to fully implement the requested changes, run quality gates, and create a PR.
 
@@ -260,7 +262,9 @@ export function generateContinuationPrompt(
       ? sortedComments.map(c => `**${c.author}** (${c.createdAt}):\n${c.body}`).join('\n\n---\n\n')
       : '_No comments yet_';
 
-   return `# Continuing Work on Issue #${issue.number}
+   return `/ulw-loop
+
+# Continuing Work on Issue #${issue.number}
 
 You previously started work on this issue but needed clarification. The human has replied.
 

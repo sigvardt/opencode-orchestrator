@@ -213,7 +213,7 @@ export class OpenCodeManager {
         try {
             await this.client.sendPromptAsync(session.id, [{
                 type: 'text',
-                text: `/ulw-loop ${prompt}`
+                text: prompt
             }]);
         } catch (error: any) {
             logger.error({
@@ -275,7 +275,7 @@ export class OpenCodeManager {
         try {
             await this.client.sendPromptAsync(previousSessionId, [{
                 type: 'text',
-                text: `/ulw-loop ${prompt}`
+                text: prompt
             }]);
         } catch (error: any) {
             logger.error({

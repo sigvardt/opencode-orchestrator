@@ -141,6 +141,8 @@ export class OpenCodeManager {
   private client: OpenCodeServerClient;
   private github: GitHubClient;
   private onTaskComplete?: (issueNumber: number) => void;
+  private resolvedAgent?: string;
+  private resolvedModel?: string;
 
   constructor(
     private config: Config,
@@ -232,6 +234,59 @@ export class OpenCodeManager {
           }
         }
       }
+
+      // Resolve the default agent and model for enforcement.
+      // This prevents model resolution from falling through to provider defaults
+      // when the oh-my-opencode plugin fails to resolve correctly.
+      const defaultAgent =
+        agents.find(
+          (a) =>
+            a.name?.toLowerCase().includes("sisyphus") ||
+            a.name?.toLowerCase().includes("ultrawork"),
+        ) || agents[0];
+
+      if (defaultAgent) {
+        this.resolvedAgent = defaultAgent.name;
+
+        if (defaultAgent.model) {
+          if (typeof defaultAgent.model === "object") {
+            const pid =
+              defaultAgent.model.providerID || defaultAgent.model.provider;
+            const mid = defaultAgent.model.modelID || defaultAgent.model.model;
+            if (pid && mid) {
+              this.resolvedModel = `${pid}/${mid}`;
+            }
+          } else {
+            this.resolvedModel = String(defaultAgent.model);
+          }
+        }
+      }
+
+      if (this.config.opencode.agent) {
+        this.resolvedAgent = this.config.opencode.agent;
+      }
+      if (this.config.opencode.model) {
+        this.resolvedModel = this.config.opencode.model;
+      }
+
+      logger.info(
+        {
+          resolvedAgent: this.resolvedAgent,
+          resolvedModel: this.resolvedModel,
+          source: this.config.opencode.model ? "env-override" : "server-config",
+        },
+        "Resolved agent/model for enforcement",
+      );
+
+      if (this.resolvedAgent && this.resolvedModel) {
+        console.log(
+          `\x1b[36m🔒 Model enforcement: agent="${this.resolvedAgent}", model="${this.resolvedModel}"\x1b[0m`,
+        );
+      } else {
+        console.log(
+          `\x1b[33m⚠️ Could not resolve agent/model for enforcement — commands will rely on server-side resolution\x1b[0m`,
+        );
+      }
     } catch (error: any) {
       logger.error(
         {
@@ -277,21 +332,39 @@ export class OpenCodeManager {
     // Check configuration before sending prompt
     await this.checkConfiguration();
 
+    const modelOptions = {
+      ...(this.resolvedAgent && { agent: this.resolvedAgent }),
+      ...(this.resolvedModel && { model: this.resolvedModel }),
+    };
+
     try {
       const parsed = parseSlashCommand(prompt);
       if (parsed) {
         logger.info(
-          { issueNumber: issue.number, command: parsed.command },
+          {
+            issueNumber: issue.number,
+            command: parsed.command,
+            ...modelOptions,
+          },
           "Sending as command (not prompt_async)",
         );
-        await this.client.sendCommand(session.id, parsed.command, parsed.args);
+        await this.client.sendCommand(
+          session.id,
+          parsed.command,
+          parsed.args,
+          modelOptions,
+        );
       } else {
-        await this.client.sendPromptAsync(session.id, [
-          {
-            type: "text",
-            text: prompt,
-          },
-        ]);
+        await this.client.sendPromptAsync(
+          session.id,
+          [
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+          modelOptions,
+        );
       }
     } catch (error: any) {
       logger.error(
@@ -364,26 +437,43 @@ export class OpenCodeManager {
       );
     }
 
-    // Send continuation prompt
+    if (!this.resolvedAgent || !this.resolvedModel) {
+      await this.checkConfiguration();
+    }
+
+    const modelOptions = {
+      ...(this.resolvedAgent && { agent: this.resolvedAgent }),
+      ...(this.resolvedModel && { model: this.resolvedModel }),
+    };
+
     try {
       const parsed = parseSlashCommand(prompt);
       if (parsed) {
         logger.info(
-          { issueNumber: issue.number, command: parsed.command },
+          {
+            issueNumber: issue.number,
+            command: parsed.command,
+            ...modelOptions,
+          },
           "Continuing as command (not prompt_async)",
         );
         await this.client.sendCommand(
           previousSessionId,
           parsed.command,
           parsed.args,
+          modelOptions,
         );
       } else {
-        await this.client.sendPromptAsync(previousSessionId, [
-          {
-            type: "text",
-            text: prompt,
-          },
-        ]);
+        await this.client.sendPromptAsync(
+          previousSessionId,
+          [
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+          modelOptions,
+        );
       }
     } catch (error: any) {
       logger.error(
